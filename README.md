@@ -49,6 +49,9 @@ hf_hub_download(repo_id='pqSatoupq/PTAI', filename='llama_projector_aligned2.pt'
 print('✓ Models downloaded successfully!')
 "
 ```
+
+For the **Llama 3.2-3B** is the open source LLM for META, but you need to access permission from them to download it.
+
 **3. Model Placement**
 
 Due to file size limits, model weights are not included. Please place your models in the following directory structure:
@@ -59,8 +62,6 @@ Due to file size limits, model weights are not included. Please place your model
   ├── /deberta-pad             # Fine-tuned DeBERTa regressor
   └── llama_projector_aligned2.pt  # Trained Llama Emotional Projector
 ```
-
-For the **Llama 3.2-3B** is the open source LLM for META, but you need to access permission from them to download it.
 
 **4. Scenario Configuration**
 
