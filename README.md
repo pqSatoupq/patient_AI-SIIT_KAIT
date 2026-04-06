@@ -107,7 +107,8 @@ The interface will be available locally at `http://localhost:7861`.
 | `utils.py` | UI helpers, dashboard rendering, and scenario loading. |
 | `config.py` | Path configurations and `EMOTION_MAP` constants. |
 
-🧠 The Affective Logic
+## 🧠 The Affective Logic
+
 The simulator uses Personality-Modulated Drift. For every turn:
 1. **Perception:** DeBERTa calculates the impact of the doctor's words.
 2. **Modulation:** The update_coord function applies **Viscosity** (emotional resistance) and **Rumination** (emotional persistence) based on the patient's Neuroticism ($N$).
