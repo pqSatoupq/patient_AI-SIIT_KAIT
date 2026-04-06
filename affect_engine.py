@@ -12,47 +12,66 @@ def get_mixed_labels(p, a, d):
     return " / ".join(top_labels[:2])
 
 def update_coord(prev, delta, persona, o, c, e, a, n, coord_type):
-    # This logic implements Affective Chronometry (Davidson, 1998) 
-    # and Cognitive Appraisal (Lazarus, 1991)
-    # normalized_delta = np.tanh(delta * 1.1) * 0.65 
-    normalized_delta = np.tanh(delta * 1.1) * 0.35
-    # viscosity = 0.9 if n < 0.3 else (0.4 if n > 0.6 else 0.65)
-    viscosity = 0.85 if n < 0.3 else (0.55 if n > 0.6 else 0.7)
+    # 1. REFINED SIGNAL
+    raw_val = np.tanh(delta * 1.0) * 0.6 
+    normalized_delta = np.sign(raw_val) * (np.abs(raw_val) ** 1.1)
     
-    multiplier = 1.0
+    is_neurotic = n > 0.6
+    is_hostile = a < 0.3 and e > 0.6
+    is_avoidant = e < 0.3
+    
+    # 2. INCREASED INERTIA (Lower Viscosity)
+    viscosity = 0.65 if (is_neurotic or is_hostile) else 0.40
+    
     offset = prev - persona
-    n_power = np.power(n, 1.8) 
     
-    if coord_type == "D":
-        if delta > 0.5: normalized_delta = abs(normalized_delta) * 0.2 
-        if n > 0.6 or e < 0.3:
-            normalized_delta = -abs(normalized_delta) if abs(delta) > 0.05 else -0.05
-            multiplier = 2.5 * n_power
+    # 3. COORDINATE LOGIC WITH REDUCED GAIN
+    if coord_type == "A":
+        stim_intensity = abs(normalized_delta)
+        if is_neurotic: multiplier = 4.5 # Down from 6.0
+        elif is_hostile: multiplier = 3.5 # Down from 4.5
+        elif is_avoidant: multiplier = 0.8 
+        else: multiplier = 1.2 
+        final_change = (stim_intensity * multiplier)
+        drift_speed = 0.02 if (is_neurotic or is_hostile) else 0.05
+
+    elif coord_type == "D":
+        if is_hostile:
+            multiplier = 0.8 
+            final_change = abs(normalized_delta) * multiplier
+        elif is_neurotic or is_avoidant:
+
+            multiplier = 2.0 if delta < 0 else 0.4
+            final_change = normalized_delta * multiplier
         else:
-            multiplier = 0.2
-            
-    elif coord_type == "A":
-        if abs(delta) > 0.35 and n < 0.3 and a < 0.2: 
-            multiplier = 2.2 
-        elif n > 0.6:
-            if delta < 0: normalized_delta = abs(normalized_delta) * 1.6
-            multiplier = 2.0
-        else:
-            multiplier = 0.35
+            multiplier = 0.8
+            final_change = normalized_delta * multiplier
+        drift_speed = 0.02 if (is_neurotic or is_hostile) else 0.05
 
     elif coord_type == "P":
-        if delta < 0: multiplier = 1.0 + (1.2 * np.power(n, 2.0))
-
-    is_recovering = (normalized_delta > 0 and prev < persona) or (normalized_delta < 0 and prev > persona)
-    rumination = 3.0 * n 
-    damping = 1.0 / (1.0 + (rumination * abs(offset))) if is_recovering else 1.0 / (1.0 + (0.3 * abs(offset)))
-    drift_speed = 0.12 if n < 0.3 else (0.02 if n > 0.6 else 0.06)
-
-    resilience_factor = (1.0 - n) + (e * 0.05) 
-
-    raw_impact = normalized_delta * multiplier * damping * viscosity
-    word_impact = max(min(raw_impact, 0.45), -0.45)
-    # word_impact = normalized_delta * multiplier * damping * viscosity
-    internal_drift = -offset * (drift_speed * resilience_factor)
+        # FIX: PLEASURE PLUNGE
+        # Drastically reduced base sensitivity and personality multipliers
+        p_sens = 1.2 + (n * 0.8) + ((1.0 - a) * 0.5) if delta < 0 else 1.0
+        final_change = normalized_delta * p_sens
+        # P-Drift is kept low to ensure the mood 'sticks'
+        drift_speed = 0.01 if (is_neurotic or is_hostile) else 0.03
     
-    return max(min(prev + word_impact + internal_drift, 1.0), -1.0)
+    else:
+        final_change = normalized_delta
+        drift_speed = 0.02
+
+    # 4. STEP CAPPING (Critical for stopping the -1/+1 slam)
+    change = final_change * viscosity
+    max_step = 0.32
+    clamped_change = max(min(change, max_step), -max_step)
+    
+    internal_drift = -offset * drift_speed
+    
+    # Apply Damping for A and D to smooth out the jitter
+    impact = clamped_change
+    if coord_type != "P":
+        damping = 1.0 / (1.0 + (0.4 * abs(offset)))
+        impact *= damping
+    
+    return max(min(prev + impact + internal_drift, 1.0), -1.0)
+
