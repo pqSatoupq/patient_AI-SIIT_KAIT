@@ -1,0 +1,14 @@
+# Models (Large files)
+models/
+*.pt
+*.safetensors
+*.bin
+
+# Python junk
+__pycache__/
+*.pyc
+
+# Local data & Logs
+*.csv
+*.jsonl
+session_exports/
