@@ -74,6 +74,8 @@ Add custom clinical cases to the `/scenarios` folder as `.txt` files using the f
 
 * `[PRESET]` (e.g., Anxious, Hostile, Resilient)
 
+-----
+
 ## 💻 Usage
 
 To launch the simulation, run:
@@ -83,6 +85,8 @@ python main2.py
 ```
 
 The interface will be available locally at `http://localhost:7861`.
+
+-----
 
 ## 📂 Project Structure
 
