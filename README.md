@@ -25,13 +25,20 @@
   * CUDA 12.x (Recommended for inference)
   * PyTorch 2.0+
 
-**1. Install Dependencies**
+**1. Clone the Repository**
+
+```bash
+git clone https://github.com/pqSatoupq/patient_AI-SIIT_KAIT.git
+cd patient_AI-SIIT_KAIT
+```
+
+**2. Install Dependencies**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**2. Download Pre-trained Models from Hugging Face** 🤗
+**3. Download Pre-trained Models from Hugging Face** 🤗
 
 ```bash
 python -c "
@@ -52,7 +59,7 @@ print('✓ Models downloaded successfully!')
 
 For the **Llama 3.2-3B** is the open source LLM for META, but you need to access permission from them to download it.
 
-**3. Model Placement**
+**4. Model Placement**
 
 Due to file size limits, model weights are not included. Please place your models in the following directory structure:
 
@@ -63,7 +70,7 @@ Due to file size limits, model weights are not included. Please place your model
   └── llama_projector_aligned2.pt  # Trained Llama Emotional Projector
 ```
 
-**4. Scenario Configuration**
+**5. Scenario Configuration**
 
 Add custom clinical cases to the `/scenarios` folder as `.txt` files using the following tags:
 
