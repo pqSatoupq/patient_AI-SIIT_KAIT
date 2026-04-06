@@ -215,7 +215,8 @@ Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
 # --- UI LAYOUT ---
 MAX_CHARS = 500
-with gr.Blocks(theme=gr.themes.Soft()) as demo:
+# with gr.Blocks(theme=gr.themes.Soft()) as demo:
+with gr.Blocks() as demo:
     all_scenarios = load_all_scenarios()
     pad_state = gr.State([-0.1, 0.0, 0.6])
     mood_history_state = gr.State([])
@@ -304,4 +305,5 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     btn_reset.click(fn=lambda: ([], build_dashboard(-0.1,0,0.6, -0.1,0,0.6, "Denial"), "", [-0.1,0,0.6], None, []), outputs=[chatbot, dash, msg_input, pad_state, live_plot, mood_history_state])
     btn_conclude.click(fn=lambda h, m, o, c, e, a, n: (h + generate_commentary(h, m, "Final"), None), inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n], outputs=[chatbot, file_download])
 
-demo.launch(server_name="0.0.0.0", server_port=7861)
+# demo.launch(server_name="0.0.0.0", server_port=7861)
+demo.launch(theme=gr.themes.Soft(),server_port=7861)
