@@ -100,4 +100,36 @@ def load_all_scenarios():
                 print(f"Error loading {filename}: {e}")
     return scenarios
 
+def validate_patient_output(raw_text):
+    """
+    Enhanced validation: Checks for missing tags AND detects 
+    if tags are repeated (looping errors).
+    """
+    required_tags = [
+        'LINGUISTIC ANALYSIS', 
+        'INTERNAL THOUGHT', 
+        'EMOTIONAL STATE', 
+        'PATIENT RESPONSE'
+    ]
+    
+    for tag in required_tags:
+        # Use findall to count every instance of the tag
+        matches = re.findall(rf"\[{tag}\]\s*:", raw_text, re.IGNORECASE)
+        
+        # ERROR 1: Tag is missing
+        if len(matches) == 0:
+            print(f"Validation Error: Missing tag [{tag}]")
+            return False
+            
+        # ERROR 2: Tag is repeated (The LLM is looping)
+        if len(matches) > 1:
+            print(f"Validation Error: Repeated tag [{tag}] ({len(matches)} times)")
+            return False
+    
+    # Final check: Ensure the response isn't empty
+    response_match = re.search(r"\[PATIENT RESPONSE\]\s*:\s*(.*)", raw_text, re.DOTALL | re.IGNORECASE)
+    if not response_match or len(response_match.group(1).strip()) < 5:
+        return False
+        
+    return True
 

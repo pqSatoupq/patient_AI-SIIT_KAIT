@@ -4,7 +4,7 @@ from config import *
 # Import the local models directly
 from inference import de_tokenizer, de_model, llama_model, llama_tokenizer, projector
 from affect_engine import update_coord, get_mixed_labels
-from utils import build_dashboard, log_mood_journey, update_plot, export_session_json, load_all_scenarios
+from utils import build_dashboard, log_mood_journey, update_plot, export_session_json, load_all_scenarios, validate_patient_output
 
 # --- NEW: AFFECTIVE STEERING HOOK CLASS ---
 class AffectiveSteeringHook:
@@ -137,51 +137,71 @@ INSTRUCTION: Follow the pattern: [LINGUISTIC ANALYSIS], [INTERNAL THOUGHT], then
 Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
 [LINGUISTIC ANALYSIS]:"""
+    max_retries = 3
+    attempts = 0
+    is_valid = False
+    full_new_text = ""
+    current_temp = float(temp) # Use a local variable to tweak temperature if needed
 
-        # [3] HOOK REGISTRATION (The main2 change)
-        soft_p = projector(torch.tensor([new_pad], device=DEVICE, dtype=torch.bfloat16))
-        soft_p = torch.nn.functional.normalize(soft_p, p=2, dim=-1) #
+    while attempts < max_retries and not is_valid:
+        attempts += 1
         
-        handles = []
-        # Target Selection logic
-        if dist_mode:
-            # Distributed Mode: Nudge a range of 5 layers centered at target
-            layers_to_hook = range(max(0, target_layer-2), min(32, target_layer+3))
-            alpha = intensity / 10.0 # Spread the force thinner
-        else:
-            # Single Layer Mode
-            layers_to_hook = [target_layer]
-            alpha = intensity / 2.0 # More concentrated nudge
-
-        for i in layers_to_hook:
-            # Determine which module to hook
-            if i == 0:
-                module = llama_model.get_input_embeddings()
-            else:
-                module = llama_model.model.layers[i-1]
+        with torch.inference_mode():
+            # [3] HOOK REGISTRATION
+            soft_p = projector(torch.tensor([new_pad], device=DEVICE, dtype=torch.bfloat16))
+            soft_p = torch.nn.functional.normalize(soft_p, p=2, dim=-1)
             
-            hook = AffectiveSteeringHook(soft_p, alpha=alpha)
-            handles.append(module.register_forward_hook(hook))
+            handles = []
+            if dist_mode:
+                layers_to_hook = range(max(0, target_layer-2), min(32, target_layer+3))
+                alpha = intensity / 10.0
+            else:
+                layers_to_hook = [target_layer]
+                alpha = intensity / 2.0
 
-        # [4] Stable Generation
-        inputs = llama_tokenizer(full_prompt, return_tensors="pt").to(DEVICE)
-        out_ids = llama_model.generate(
-            **inputs,
-            max_new_tokens=int(tokens), 
-            temperature=float(temp), 
-            repetition_penalty=float(penalty), 
-            do_sample=True, 
-            pad_token_id=llama_tokenizer.pad_token_id
+            for i in layers_to_hook:
+                module = llama_model.get_input_embeddings() if i == 0 else llama_model.model.layers[i-1]
+                hook = AffectiveSteeringHook(soft_p, alpha=alpha)
+                handles.append(module.register_forward_hook(hook))
+
+            # [4] Generation
+            inputs = llama_tokenizer(full_prompt, return_tensors="pt").to(DEVICE)
+            out_ids = llama_model.generate(
+                **inputs,
+                max_new_tokens=int(tokens), 
+                temperature=current_temp, 
+                repetition_penalty=float(penalty), 
+                do_sample=True, 
+                pad_token_id=llama_tokenizer.pad_token_id
+            )
+
+            # [5] HOOK CLEANUP (Must happen before we decide to retry or finish)
+            for h in handles: h.remove()
+
+        # [6] Validation Check
+        raw_res = llama_tokenizer.decode(out_ids[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+        raw_res = re.sub(r"^[,\s\:]+", "", raw_res)
+        temp_text = "[LINGUISTIC ANALYSIS]: " + raw_res
+        
+        # Call the validator from utils.py
+        is_valid = validate_patient_output(temp_text)
+        
+        if is_valid:
+            full_new_text = temp_text
+        else:
+            print(f"⚠️ Attempt {attempts} failed validation (tags missing or repeated).")
+            current_temp = min(current_temp + 0.15, 1.2) # Increase randomness to "break" the loop
+
+    # [7] Final Fallback if all retries fail
+    if not is_valid:
+        full_new_text = (
+            "[LINGUISTIC ANALYSIS]: Patient is severely dissociated.\n"
+            "[INTERNAL THOUGHT]: I can't find the words. Everything is blurry.\n"
+            f"[EMOTIONAL STATE]: {label}\n"
+            "[PATIENT RESPONSE]: I... I'm sorry. I can't focus. What was the question?"
         )
 
-        # [5] HOOK CLEANUP (Critical)
-        for h in handles: h.remove()
-
-    # [6] Parsing & Display
-    raw_res = llama_tokenizer.decode(out_ids[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-    raw_res = re.sub(r"^[,\s\:]+", "", raw_res)
-    full_new_text = "[LINGUISTIC ANALYSIS]: " + raw_res
-        
+    # [8] Final Parsing (Now using full_new_text)
     analysis = get_tag('LINGUISTIC ANALYSIS', full_new_text)
     raw_thought = get_tag('INTERNAL THOUGHT', full_new_text)
     ai_label = get_tag('EMOTIONAL STATE', full_new_text)
