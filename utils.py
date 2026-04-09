@@ -133,3 +133,31 @@ def validate_patient_output(raw_text):
         
     return True
 
+# --- AVATAR MAPPING LOGIC ---
+def build_avatar_map(base_path="./charecter"):
+    """
+    Automatically builds the AVATAR_MAP dictionary by scanning 
+    the character folders inside the base images directory.
+    """
+    auto_map = {}
+    if not os.path.exists(base_path):
+        print(f"⚠️ Warning: '{base_path}' folder not found. Avatar images won't load.")
+        return auto_map
+        
+    for char_name in os.listdir(base_path):
+        char_folder = os.path.join(base_path, char_name)
+        if os.path.isdir(char_folder):
+            auto_map[char_name] = {}
+            for filename in os.listdir(char_folder):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                    emo_name = os.path.splitext(filename)[0]
+                    auto_map[char_name][emo_name] = os.path.join(char_folder, filename).replace("\\", "/")
+    return auto_map
+
+# Generate the map automatically when utils.py is loaded
+AVATAR_MAP = build_avatar_map("./charecter")
+
+def get_face_image(character, emotion):
+    """Safely fetches the image path based on character and emotion."""
+    char_images = AVATAR_MAP.get(character, {})
+    return char_images.get(emotion, char_images.get("default", None))

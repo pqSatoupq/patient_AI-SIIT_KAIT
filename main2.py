@@ -4,7 +4,10 @@ from config import *
 # Import the local models directly
 from inference import de_tokenizer, de_model, llama_model, llama_tokenizer, projector
 from affect_engine import update_coord, get_mixed_labels
-from utils import build_dashboard, log_mood_journey, update_plot, export_session_json, load_all_scenarios, validate_patient_output
+from utils import build_dashboard, log_mood_journey, update_plot, export_session_json, load_all_scenarios, validate_patient_output, get_face_image, AVATAR_MAP
+
+# Set the default character for the Gradio Dropdown
+default_char = list(AVATAR_MAP.keys())[0] if AVATAR_MAP else "None"
 
 # --- NEW: AFFECTIVE STEERING HOOK CLASS ---
 class AffectiveSteeringHook:
@@ -59,7 +62,7 @@ CONTEXT: A medical student (Doctor) is interacting with a simulated patient (Ale
 SCENARIO: {situation}
 
 TASK:
-1. Analyze the student's adherence to the SPIKES protocol (Setting, Perception, Invitation, Knowledge, Empathy, Strategy).
+1. Analyze the student's(Doctor) adherence to the SPIKES protocol (Setting, Perception, Invitation, Knowledge, Empathy, Strategy).
 2. Correlate the student's words with the P (Pleasure) and A (Arousal) shifts. Final State: {mood_history[-1][4] if mood_history else 'N/A'}.
 3. Successes vs. Distress: Identify where the student succeeded and where they caused unnecessary patient distress (evidenced by spikes in Arousal).
 4. Evidence: Use specific quotes from the transcript below to justify your feedback.
@@ -86,17 +89,21 @@ TRANSCRIPT:
         )
     
     raw_feedback = llama_tokenizer.decode(out_ids[0][input_len:], skip_special_tokens=True)
+    torch.cuda.empty_cache()
     return [{"role": "assistant", "content": f"### 🩺 CLINICAL SUPERVISOR DEBRIEF\n\n{raw_feedback}"}]
 
-def patient_respond(message, history, o, c, e, a, n, sys_p, temp, tokens, penalty, intensity, pad_state, mood_history, situation, target_layer, dist_mode, emo_mode):
+def patient_respond(message, history, o, c, e, a, n, sys_p, temp, tokens, penalty, intensity, pad_state, mood_history, situation, target_layer, dist_mode, emo_mode, avatar_char):
     if not message: return history, gr.update(), "", pad_state, gr.update(), mood_history, None
     prev_p, prev_a, prev_d = pad_state
-    
+
     # Calculate persona baseline [cite: 98]
     po, ao, do = (0.21*e + 0.59*a + 0.19*n), (0.15*o + 0.3*a - 0.57*n), (0.25*o + 0.17*c + 0.6*e - 0.32*a)
 
+    label = get_mixed_labels(prev_p, prev_a, prev_d)
+
     with torch.inference_mode():
-        # [1] Perception & Math [cite: 101, 103]
+
+        # [1] Perception & Math 
         """*****************************************"""
         context_input = f"[SCENARIO]: {situation}. [CURRENT STATE]: {label}. [DOCTOR]: {message}"
         de_in = de_tokenizer(context_input, return_tensors="pt", padding=True, truncation=True).to(DEVICE)
@@ -212,8 +219,11 @@ Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
     if emo_mode:
         display_label = label
+        current_face = get_face_image(avatar_char, display_label)
     else:
         display_label = ai_label if (ai_label and len(ai_label) > 2) else label
+        label_char = label
+        current_face = get_face_image(avatar_char, label_char)
     
     final_msg = (
         f"[LINGUISTIC ANALYSIS]: {analysis}\n"
@@ -231,7 +241,7 @@ Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     current_plot = update_plot(mood_history)
 
     torch.cuda.empty_cache()
-    return history, build_dashboard(np_val, na_val, nd_val, prev_p, prev_a, prev_d, display_label), "", new_pad, current_plot, mood_history, csv_path
+    return history, build_dashboard(np_val, na_val, nd_val, prev_p, prev_a, prev_d, display_label), "", new_pad, current_plot, mood_history, csv_path, current_face
 
 # --- UI LAYOUT ---
 MAX_CHARS = 500
@@ -256,9 +266,12 @@ with gr.Blocks() as demo:
             with gr.Group():
                 gr.Markdown("### 🛠️ Persona & Steering")
                 btn_open_scen = gr.Button("📂 Select Scenario", variant="secondary")
+                start_emo_dd = gr.Dropdown(label="Starting Emotion", choices=list(EMOTION_MAP.keys()), value="Gratitude")
                 preset_dd = gr.Dropdown(label="Personality Preset", choices=list(PRESETS.keys()))
                 s_o = gr.Slider(0, 1, 0.5, label="O"); s_c = gr.Slider(0, 1, 0.5, label="C"); s_e = gr.Slider(0, 1, 0.5, label="E"); s_a = gr.Slider(0, 1, 0.5, label="A"); s_n = gr.Slider(0, 1, 0.8, label="N")
-            
+                avatar_char = gr.Dropdown(label="Select Character", choices=list(AVATAR_MAP.keys()) if AVATAR_MAP else ["None"], value=default_char)
+                show_avatar = gr.Checkbox(label="Show Patient Face", value=True)
+
             with gr.Group():
                 gr.Markdown("### 🪝 Hook Configuration")
                 target_layer = gr.Slider(0, 31, 16, step=1, label="Target Injection Layer")
@@ -267,43 +280,67 @@ with gr.Blocks() as demo:
                 intensity = gr.Slider(0.1, 4.0, 1.5, label="Steering Alpha (Intensity)")
                 temp = gr.Slider(0.1, 1.5, 0.7, label="Temperature")
                 tokens = gr.Slider(64, 1020, 350, label="Max Tokens")
-                # situation_input = gr.Textbox(label="Problem List", value="Right arm is amputated. Neck is in traction.")
+                situation_input = gr.Textbox(label="Problem List", value="Generic clinical case")
                 sys_msg = gr.Textbox(label="System Prompt", lines=2)
             
             btn_reset = gr.Button("🔄 Reset Simulation", variant="stop")
 
         with gr.Column(scale=2):
-            dash = gr.HTML(value=build_dashboard(-0.1, 0.0, 0.6, -0.1, 0.0, 0.6, "Denial"))
+            dash = gr.HTML(value=build_dashboard(-0.1, 0.0, 0.6, -0.1, 0.0, 0.6, "Gratitude"))
             chatbot = gr.Chatbot(label="Dialogue History", height=500) 
             msg_input = gr.Textbox(label="Doctor Message", placeholder="Type here...", interactive=True, max_length=MAX_CHARS)
             char_counter = gr.Markdown(f"**0**/{MAX_CHARS} characters")
 
         with gr.Column(scale=1):
             live_plot = gr.Plot(label="Live PAD Trajectory")
+            patient_image = gr.Image(value=get_face_image(default_char, "Gratitude"), label="Patient Emotion", interactive=False, visible=True, height=250)
             btn_export = gr.Button("📊 Export Data", variant="primary"); 
             file_download = gr.File(label="Download")
             btn_conclude = gr.Button("🏁 Clinical Debrief", variant="stop")
 
     # Connect Events
+    show_avatar.change(fn=lambda show: gr.update(visible=show), inputs=show_avatar, outputs=patient_image)
+
     btn_open_scen.click(fn=lambda: gr.update(visible=True), outputs=scenario_panel)
     scenario_drop.change(fn=lambda n: all_scenarios.get(n, {}).get("DESCRIPTION", ""), inputs=scenario_drop, outputs=scenario_desc)
     btn_cancel_scen.click(fn=lambda: gr.update(visible=False), outputs=scenario_panel)
     
     preset_dd.change(fn=lambda p: PRESETS[p], inputs=[preset_dd], outputs=[s_o, s_c, s_e, s_a, s_n])
 
-    def apply_scenario(name):
+    def update_initial_emotion(emo_name, char_name):
+        coords = EMOTION_MAP.get(emo_name, [-0.1, 0.0, 0.6])
+        new_face = get_face_image(char_name, emo_name)
+        # Returns: New PAD State, New Dashboard HTML
+        return coords, build_dashboard(*coords, *coords, emo_name), new_face
+
+    # Trigger the update when the user changes the dropdown
+    start_emo_dd.change(
+        fn=update_initial_emotion, 
+        inputs=[start_emo_dd, avatar_char], 
+        outputs=[pad_state, dash, patient_image]
+    )
+
+    avatar_char.change(
+        fn=get_face_image,
+        inputs=[avatar_char, start_emo_dd],
+        outputs=[patient_image]
+    )
+
+    def apply_scenario(name, char_name):
         scen = all_scenarios.get(name, {})
         sys_p = scen.get("SYSTEM PROMPT", "")
+        prob_list = scen.get("PROBLEM LIST", "Unknown medical condition.")
         if "### OUTPUT FORMAT" not in sys_p:
             sys_p += "\n\n### OUTPUT FORMAT (STRICT)\n[LINGUISTIC ANALYSIS]: ...\n[INTERNAL THOUGHT]: ...\n[EMOTIONAL STATE]: ...\n[PATIENT RESPONSE]: ..."
         
-        emo = scen.get("STARTING EMOTION", "Denial")
+        emo = scen.get("STARTING EMOTION", "Gratitude")
         coords = EMOTION_MAP.get(emo, [-0.1, 0, 0.6])
         preset = scen.get("PRESET", "Alex (Anxious)")
         p_vals = PRESETS.get(preset, [0.5, 0.5, 0.4, 0.4, 0.8])
-        return gr.update(visible=False), sys_p, emo, preset, *p_vals, [], build_dashboard(*coords, *coords, emo), coords, None, []
+        new_face = get_face_image(char_name, emo)
+        return gr.update(visible=False), sys_p, prob_list, emo, preset, *p_vals, [], build_dashboard(*coords, *coords, emo), coords, None, []
 
-    btn_confirm_scen.click(fn=apply_scenario, inputs=scenario_drop, outputs=[scenario_panel, sys_msg, gr.State(), preset_dd, s_o, s_c, s_e, s_a, s_n, chatbot, dash, pad_state, live_plot, mood_history_state])
+    btn_confirm_scen.click(fn=apply_scenario, inputs=[scenario_drop, avatar_char], outputs=[scenario_panel, sys_msg, situation_input, start_emo_dd, preset_dd, s_o, s_c, s_e, s_a, s_n, chatbot, dash, pad_state, live_plot, mood_history_state, patient_image])
     
     def update_counter(text):
         count = len(text)
@@ -316,13 +353,13 @@ with gr.Blocks() as demo:
 
     msg_input.submit(
         patient_respond, 
-        [msg_input, chatbot, s_o, s_c, s_e, s_a, s_n, sys_msg, temp, tokens, gr.State(1.15), intensity, pad_state, mood_history_state, gr.State("Scenario"), target_layer, dist_mode, emo_mode], 
-        [chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, file_download]
+        [msg_input, chatbot, s_o, s_c, s_e, s_a, s_n, sys_msg, temp, tokens, gr.State(1.15), intensity, pad_state, mood_history_state, situation_input, target_layer, dist_mode, emo_mode, avatar_char], 
+        [chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, file_download, patient_image]
     )
 
 
-    btn_export.click(fn=export_session_json, inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n], outputs=file_download)
-    btn_reset.click(fn=lambda: ([], build_dashboard(-0.1,0,0.6, -0.1,0,0.6, "Denial"), "", [-0.1,0,0.6], None, []), outputs=[chatbot, dash, msg_input, pad_state, live_plot, mood_history_state])
+    btn_export.click(fn=export_session_json, inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n,situation_input], outputs=file_download)
+    btn_reset.click(fn=lambda: ([], build_dashboard(-0.1,0,0.6, -0.1,0,0.6, "Gratitude"), "", [-0.1,0,0.6], None, []), outputs=[chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, patient_image])
     btn_conclude.click(fn=lambda h, m, o, c, e, a, n: (h + generate_commentary(h, m, "Final"), None), inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n], outputs=[chatbot, file_download])
 
 # demo.launch(server_name="0.0.0.0", server_port=7861)
