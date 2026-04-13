@@ -92,7 +92,7 @@ TRANSCRIPT:
     torch.cuda.empty_cache()
     return [{"role": "assistant", "content": f"### 🩺 CLINICAL SUPERVISOR DEBRIEF\n\n{raw_feedback}"}]
 
-def patient_respond(message, history, o, c, e, a, n, sys_p, temp, tokens, penalty, intensity, pad_state, mood_history, situation, target_layer, dist_mode, emo_mode, avatar_char):
+def patient_respond(message, history, o, c, e, a, n, sys_p, temp, tokens, penalty, intensity, pad_state, mood_history, situation, target_layer, target_layer_2, dual_mode, dist_mode, emo_mode, avatar_char):
     if not message: return history, gr.update(), "", pad_state, gr.update(), mood_history, None
     prev_p, prev_a, prev_d = pad_state
 
@@ -159,7 +159,12 @@ Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             soft_p = torch.nn.functional.normalize(soft_p, p=2, dim=-1)
             
             handles = []
-            if dist_mode:
+            if dual_mode:
+                # Use set() just in case the user accidentally sets both sliders to the same number
+                layers_to_hook = list(set([target_layer, target_layer_2]))
+                # Split the intensity evenly across the two layers so we don't blow up the VRAM
+                alpha = intensity / len(layers_to_hook)
+            elif dist_mode:
                 layers_to_hook = range(max(0, target_layer-2), min(32, target_layer+3))
                 alpha = intensity / 10.0
             else:
@@ -275,6 +280,8 @@ with gr.Blocks() as demo:
             with gr.Group():
                 gr.Markdown("### 🪝 Hook Configuration")
                 target_layer = gr.Slider(0, 31, 16, step=1, label="Target Injection Layer")
+                dual_mode = gr.Checkbox(label="Dual Injection Mode", value=False)
+                target_layer_2 = gr.Slider(0, 31, 24, step=1, label="Target Injection Layer 2", visible=False)
                 dist_mode = gr.Checkbox(label="Distributed Mode (Multi-Layer)", value=True)
                 emo_mode = gr.Checkbox(label="Strict emotion label", value=True)
                 intensity = gr.Slider(0.1, 4.0, 1.5, label="Steering Alpha (Intensity)")
@@ -300,6 +307,8 @@ with gr.Blocks() as demo:
 
     # Connect Events
     show_avatar.change(fn=lambda show: gr.update(visible=show), inputs=show_avatar, outputs=patient_image)
+
+    dual_mode.change(fn=lambda show: gr.update(visible=show), inputs=dual_mode, outputs=target_layer_2)
 
     btn_open_scen.click(fn=lambda: gr.update(visible=True), outputs=scenario_panel)
     scenario_drop.change(fn=lambda n: all_scenarios.get(n, {}).get("DESCRIPTION", ""), inputs=scenario_drop, outputs=scenario_desc)
@@ -353,7 +362,7 @@ with gr.Blocks() as demo:
 
     msg_input.submit(
         patient_respond, 
-        [msg_input, chatbot, s_o, s_c, s_e, s_a, s_n, sys_msg, temp, tokens, gr.State(1.15), intensity, pad_state, mood_history_state, situation_input, target_layer, dist_mode, emo_mode, avatar_char], 
+        [msg_input, chatbot, s_o, s_c, s_e, s_a, s_n, sys_msg, temp, tokens, gr.State(1.15), intensity, pad_state, mood_history_state, situation_input, target_layer, target_layer_2, dual_mode, dist_mode, emo_mode, avatar_char], 
         [chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, file_download, patient_image]
     )
 
