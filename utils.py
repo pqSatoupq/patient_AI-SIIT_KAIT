@@ -157,7 +157,19 @@ def build_avatar_map(base_path="./charecter"):
 # Generate the map automatically when utils.py is loaded
 AVATAR_MAP = build_avatar_map("./charecter")
 
+# def get_face_image(character, emotion):
+#     """Safely fetches the image path based on character and emotion."""
+#     char_images = AVATAR_MAP.get(character, {})
+#     return char_images.get(emotion, char_images.get("default", None))
+
 def get_face_image(character, emotion):
-    """Safely fetches the image path based on character and emotion."""
+    """Safely fetches the image path based on character and emotion.
+       If emotion is mixed (e.g., 'Despair / Sadness'), it uses the first label."""
     char_images = AVATAR_MAP.get(character, {})
-    return char_images.get(emotion, char_images.get("default", None))
+    
+    # --- NEW: Extract the primary emotion ---
+    # Split the string by '/' and take the first part, then strip any extra spaces
+    primary_emotion = emotion.split('/')[0].strip()
+    
+    # Try to find the primary emotion, otherwise fall back to default
+    return char_images.get(primary_emotion, char_images.get("default", None))

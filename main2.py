@@ -63,7 +63,7 @@ SCENARIO: {situation}
 
 TASK:
 1. Analyze the student's(Doctor) adherence to the SPIKES protocol (Setting, Perception, Invitation, Knowledge, Empathy, Strategy).
-2. Correlate the student's words with the P (Pleasure) and A (Arousal) shifts. Final State: {mood_history[-1][4] if mood_history else 'N/A'}.
+2. Correlate the student's words with the P (Pleasure), A (Arousal) and D (Dominance) shifts. Final State: {mood_history[-1][4] if mood_history else 'N/A'}.
 3. Successes vs. Distress: Identify where the student succeeded and where they caused unnecessary patient distress (evidenced by spikes in Arousal).
 4. Evidence: Use specific quotes from the transcript below to justify your feedback.
 5. Grading: give the score (0-10) for each aspect for feedback.
@@ -120,7 +120,7 @@ def patient_respond(message, history, o, c, e, a, n, sys_p, temp, tokens, penalt
 
         # [2] Prompt Construction
         clean_history = ""
-        for msg in history[-4:]:
+        for msg in history[-6:]:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             # --- ADD THIS FIX HERE ---
@@ -144,7 +144,7 @@ INSTRUCTION: Follow the pattern: [LINGUISTIC ANALYSIS], [INTERNAL THOUGHT], then
 Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
 [LINGUISTIC ANALYSIS]:"""
-    max_retries = 3
+    max_retries = 5
     attempts = 0
     is_valid = False
     full_new_text = ""
@@ -249,7 +249,7 @@ Doctor: {message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     return history, build_dashboard(np_val, na_val, nd_val, prev_p, prev_a, prev_d, display_label), "", new_pad, current_plot, mood_history, csv_path, current_face
 
 # --- UI LAYOUT ---
-MAX_CHARS = 500
+MAX_CHARS = 650
 # with gr.Blocks(theme=gr.themes.Soft()) as demo:
 with gr.Blocks() as demo:
     all_scenarios = load_all_scenarios()
@@ -335,7 +335,7 @@ with gr.Blocks() as demo:
         outputs=[patient_image]
     )
 
-    def apply_scenario(name, char_name):
+    def apply_scenario(name, char_name): 
         scen = all_scenarios.get(name, {})
         sys_p = scen.get("SYSTEM PROMPT", "")
         prob_list = scen.get("PROBLEM LIST", "Unknown medical condition.")
@@ -346,8 +346,12 @@ with gr.Blocks() as demo:
         coords = EMOTION_MAP.get(emo, [-0.1, 0, 0.6])
         preset = scen.get("PRESET", "Alex (Anxious)")
         p_vals = PRESETS.get(preset, [0.5, 0.5, 0.4, 0.4, 0.8])
+        
+        # 1. Fetch the image based on the scenario's starting emotion
         new_face = get_face_image(char_name, emo)
-        return gr.update(visible=False), sys_p, prob_list, emo, preset, *p_vals, [], build_dashboard(*coords, *coords, emo), coords, None, []
+        
+        # 2. Make sure new_face is the 16th and final item returned here
+        return gr.update(visible=False), sys_p, prob_list, emo, preset, *p_vals, [], build_dashboard(*coords, *coords, emo), coords, None, [], new_face
 
     btn_confirm_scen.click(fn=apply_scenario, inputs=[scenario_drop, avatar_char], outputs=[scenario_panel, sys_msg, situation_input, start_emo_dd, preset_dd, s_o, s_c, s_e, s_a, s_n, chatbot, dash, pad_state, live_plot, mood_history_state, patient_image])
     
@@ -368,7 +372,7 @@ with gr.Blocks() as demo:
 
 
     btn_export.click(fn=export_session_json, inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n,situation_input], outputs=file_download)
-    btn_reset.click(fn=lambda: ([], build_dashboard(-0.1,0,0.6, -0.1,0,0.6, "Gratitude"), "", [-0.1,0,0.6], None, []), outputs=[chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, patient_image])
+    btn_reset.click(fn=lambda char_name, emo: ([], build_dashboard(-0.1, 0, 0.6, -0.1, 0, 0.6, emo), "", [-0.1, 0, 0.6], None, [], get_face_image(char_name, emo)), inputs=[avatar_char, start_emo_dd], outputs=[chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, patient_image])
     btn_conclude.click(fn=lambda h, m, o, c, e, a, n: (h + generate_commentary(h, m, "Final"), None), inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n], outputs=[chatbot, file_download])
 
 # demo.launch(server_name="0.0.0.0", server_port=7861)
