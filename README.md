@@ -80,7 +80,7 @@ Add custom clinical cases to the `/scenarios` folder as `.txt` files using the f
 
 * `[STARTING EMOTION]`
 
-* `[PRESET]` (e.g., Anxious, Hostile, Resilient)
+* `[PRESET]` (e.g., Anxious, Hostile)
 
 -----
 
@@ -101,6 +101,7 @@ The interface will be available locally at `http://localhost:7861`.
 | File | Description |
 | :--- | :--- |
 | `main2.py` | Main entry point and Gradio UI logic. |
+| `main.py` | Legacy version that use the soft-prompt injection instead of Steering Hook. |
 | `affect_engine.py` | Logic for updating emotional coordinates and personality modulation. |
 | `inference.py` | Model loading and inference setup for Llama and DeBERTa. |
 | `models.py` | Definitions for the `DebertaPureRegressor` `and LlamaEmotionalProjector`. |

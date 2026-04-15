@@ -59,4 +59,4 @@ Grade 3 Ankle Sprain. Possible Avulsion Fracture.
 [STARTING EMOTION]
 Sadness
 [PRESET]
-Alex (Calm)
+Alex (Stable)
