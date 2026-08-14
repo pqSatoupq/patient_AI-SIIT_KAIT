@@ -279,9 +279,9 @@ with gr.Blocks() as demo:
 
             with gr.Group():
                 gr.Markdown("### 🪝 Hook Configuration")
-                target_layer = gr.Slider(0, 31, 16, step=1, label="Target Injection Layer")
+                target_layer = gr.Slider(0, 28, 16, step=1, label="Target Injection Layer")
                 dual_mode = gr.Checkbox(label="Dual Injection Mode", value=False)
-                target_layer_2 = gr.Slider(0, 31, 24, step=1, label="Target Injection Layer 2", visible=False)
+                target_layer_2 = gr.Slider(0, 28, 24, step=1, label="Target Injection Layer 2", visible=False)
                 dist_mode = gr.Checkbox(label="Distributed Mode (Multi-Layer)", value=True)
                 emo_mode = gr.Checkbox(label="Strict emotion label", value=True)
                 intensity = gr.Slider(0.1, 4.0, 1.5, label="Steering Alpha (Intensity)")

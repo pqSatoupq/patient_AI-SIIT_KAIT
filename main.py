@@ -367,5 +367,5 @@ with gr.Blocks() as demo:
     msg_input.submit(patient_respond, [msg_input, chatbot, s_o, s_c, s_e, s_a, s_n, sys_msg, temp, tokens, penalty, intensity, pad_state, mood_history_state, situation_input], [chatbot, dash, msg_input, pad_state, live_plot, mood_history_state, file_download])
 
 # Changed server_name to "127.0.0.1" for standard local use
-demo.launch(theme=gr.themes.Soft(),server_name="127.0.0.1", server_port=7860)
-# demo.launch(theme=gr.themes.Soft(),server_name="0.0.0.0", server_port=7860)
+# demo.launch(theme=gr.themes.Soft(),server_name="127.0.0.1", server_port=7860, auth=("admin", "password123"))
+demo.launch(theme=gr.themes.Soft(),server_name="0.0.0.0", server_port=7860, auth=("admin", "password123"))
