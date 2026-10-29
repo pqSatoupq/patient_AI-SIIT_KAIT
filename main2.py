@@ -96,6 +96,7 @@ def patient_respond(message, history, o, c, e, a, n, sys_p, temp, tokens, penalt
     if not message: return history, gr.update(), "", pad_state, gr.update(), mood_history, None
     prev_p, prev_a, prev_d = pad_state
 
+    # Calculate persona baseline
     po, ao, do = (0.21*e + 0.59*a + 0.19*n), (0.15*o + 0.3*a - 0.57*n), (0.25*o + 0.17*c + 0.6*e - 0.32*a)
 
     label = get_mixed_labels(prev_p, prev_a, prev_d)
