@@ -20,7 +20,7 @@
 ## 🛠️ Update
 
   * Fix scenario 1
-  * Fix mismatch dimansion value in main.py
+  * Fix mismatch dimension value in main.py
   * Add user name and password to try the auth function of gradio lib.
   * User name: admin | Password: password123
 
