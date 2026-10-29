@@ -376,4 +376,5 @@ with gr.Blocks() as demo:
     btn_conclude.click(fn=lambda h, m, o, c, e, a, n: (h + generate_commentary(h, m, "Final"), None), inputs=[chatbot, mood_history_state, s_o, s_c, s_e, s_a, s_n], outputs=[chatbot, file_download])
 
 # demo.launch(server_name="0.0.0.0", server_port=7861)
-demo.launch(theme=gr.themes.Soft(),server_port=7861)
+# demo.launch(theme=gr.themes.Soft(),server_port=7861)
+demo.launch(theme=gr.themes.Soft(),server_name="0.0.0.0", server_port=7860, auth=("admin", "password123"))
