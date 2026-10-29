@@ -1,6 +1,7 @@
 # Use local relative paths for Docker compatibility
 LLAMA_PATH = "./models/Llama3.2-3B"
-DEBERTA_PATH = "./models/deberta-pad(centered_dataset_v1)"
+# DEBERTA_PATH = "./models/deberta-pad(centered_dataset_v1)"
+DEBERTA_PATH = "./models/deberta-pad"
 PROJECTOR_WEIGHTS = "./models/llama_projector_aligned2.pt"
 DEVICE = "cuda"
 
